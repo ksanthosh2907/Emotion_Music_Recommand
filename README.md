@@ -1,3 +1,4 @@
+
 Clone this GitHub repo:
 git clone https://github.com/ksanthosh2907/Emotion_Music_Recommand/
 
@@ -44,3 +45,12 @@ python main.py
 
 now you can run program in web application
 streamlit run app.py
+
+Home Page 
+<img width="1920" height="1080" alt="Screenshot (56)" src="https://github.com/user-attachments/assets/4f708566-69be-4057-9124-32dc6a16521c" />
+
+Result
+<img width="1920" height="1080" alt="Screenshot (55)" src="https://github.com/user-attachments/assets/adef75cf-11c5-4db2-b708-45e682330633" />
+
+Spotify 
+<img width="1920" height="1080" alt="Screenshot (54)" src="https://github.com/user-attachments/assets/20e577c2-0a43-423e-9227-2cdc8bc2e09a" />
