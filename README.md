@@ -26,7 +26,8 @@ Built with **Streamlit**, **OpenCV**, **TensorFlow/Keras**, and the **Spotify We
 <img width="1920" height="1080" alt="Screenshot (61)" src="https://github.com/user-attachments/assets/5c38565a-64e4-4b03-a1ca-1579685df078" />
 
 # Spotify API
-<img width="1920" height="1080" alt="Screenshot (60)" src="https://github.com/user-attachments/assets/dee9aa4a-7efe-4851-847a-afa9a1aaaf89" />
+<img width="1920" height="1080" alt="Screenshot (50)" src="https://github.com/user-attachments/assets/80f35393-33c4-4490-8aad-54661f03dc57" />
+
 
 # Main Webpage
 <img width="1920" height="1080" alt="Screenshot (54)" src="https://github.com/user-attachments/assets/6a9a30cf-45de-48b8-aaff-989b9ae50a5a" />
