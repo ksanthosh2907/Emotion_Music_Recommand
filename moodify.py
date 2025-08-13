@@ -51,9 +51,8 @@ def detect_emotion_from_image(image):
     faces = face_cascade.detectMultiScale(gray)
 
     for (x, y, w, h) in faces:
-        roi = gray[y:y+h, x:x+w]
-        roi = cv2.resize(roi, (48, 48))
-        roi = roi[np.newaxis, :, :, np.newaxis] / 255.0
+        roi = cv2.resize(image[y:y+h, x:x+w], (48, 48))
+        roi = roi[np.newaxis] / 255.0
         prediction = emotion_model.predict(roi)
         max_index = int(np.argmax(prediction))
         return emotion_labels[max_index]
@@ -84,4 +83,5 @@ def main():
 # Proper entry point
 if __name__ == "__main__":
     main()
+
 
