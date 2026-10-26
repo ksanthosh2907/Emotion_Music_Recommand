@@ -46,7 +46,7 @@ emotion_labels = [
 @st.cache_resource
 def initialize_spotify():
     client_id = st.secrets["SPOTIFY_CLIENT_ID"]
-    client_secret = st.secrets["SPOTIFY_CLIENT_SECRET"]
+    client_secret = st.secrets["SPOTIFY_CLIENT_SECRET "]
 
     auth_manager = SpotifyClientCredentials(
         client_id=client_id,
