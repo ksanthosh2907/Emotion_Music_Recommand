@@ -1,13 +1,9 @@
-
 import os
-import tempfile
-
 import cv2
 import numpy as np
 import streamlit as st
-import spotipy
 from keras.models import load_model
-from spotipy.oauth2 import SpotifyClientCredentials
+from urllib.parse import quote_plus
 
 
 # =========================================================
@@ -16,6 +12,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "emotion_model.h5")
+
 
 @st.cache_resource
 def load_emotion_model():
@@ -40,80 +37,58 @@ emotion_labels = [
 
 
 # =========================================================
-# 2. Configure Spotify
-# =========================================================
-
-@st.cache_resource
-def initialize_spotify():
-    client_id = st.secrets["SPOTIFY_CLIENT_ID"]
-    client_secret = st.secrets["SPOTIFY_CLIENT_SECRET"]
-
-    auth_manager = SpotifyClientCredentials(
-        client_id=client_id,
-        client_secret=client_secret
-    )
-
-    return spotipy.Spotify(auth_manager=auth_manager)
-
-
-# =========================================================
-# 3. Map emotions to music genres
+# 2. Map emotions to music genres
 # =========================================================
 
 def get_genre(emotion):
     mapping = {
-        "Happy": "pop",
-        "Sad": "acoustic",
-        "Angry": "rock",
-        "Surprise": "dance",
-        "Neutral": "chill",
-        "Fear": "ambient",
-        "Disgust": "metal"
+        "Happy": "happy pop music",
+        "Sad": "sad acoustic songs",
+        "Angry": "rock music",
+        "Surprise": "energetic dance music",
+        "Neutral": "chill relaxing music",
+        "Fear": "calming ambient music",
+        "Disgust": "heavy metal music"
     }
 
-    return mapping.get(emotion, "pop")
+    return mapping.get(emotion, "popular music")
 
 
 # =========================================================
-# 4. Fetch songs from Spotify
+# 3. Generate YouTube search links
 # =========================================================
 
-def get_tracks_by_genre(genre):
-    sp = initialize_spotify()
-
-    results = sp.search(
-        q=f"genre:{genre}",
-        type="track",
-        limit=5
-    )
+def get_youtube_tracks(genre):
+    recommendations = [
+        f"{genre} playlist",
+        f"best {genre} songs",
+        f"{genre} music mix",
+        f"{genre} songs with lyrics",
+        f"popular {genre}"
+    ]
 
     tracks = []
 
-    for item in results.get("tracks", {}).get("items", []):
-        artists = item.get("artists", [])
-        external_urls = item.get("external_urls", {})
-
+    for query in recommendations:
         tracks.append({
-            "name": item.get("name", "Unknown track"),
-            "artist": (
-                artists[0].get("name", "Unknown artist")
-                if artists else "Unknown artist"
-            ),
-            "url": external_urls.get("spotify", "")
+            "name": query.title(),
+            "url": (
+                "https://www.youtube.com/results?search_query="
+                + quote_plus(query)
+            )
         })
 
     return tracks
 
 
 # =========================================================
-# 5. Detect face and predict emotion
+# 4. Detect emotion from face
 # =========================================================
 
 def detect_emotion_from_image(image):
     if image is None:
         return "No image received"
 
-    # Determine the input format expected by the model.
     input_shape = emotion_model.input_shape
 
     if isinstance(input_shape, list):
@@ -121,20 +96,19 @@ def detect_emotion_from_image(image):
 
     if len(input_shape) != 4:
         raise ValueError(
-            f"Expected a 4D image input, but model input is {input_shape}"
+            f"Unsupported model input shape: {input_shape}"
         )
 
-    # This code supports channels-last grayscale or RGB models.
     height = input_shape[1] or 48
     width = input_shape[2] or 48
     channels = input_shape[3]
 
     if channels not in (1, 3):
         raise ValueError(
-            f"Unsupported model input shape: {input_shape}"
+            f"Unsupported number of input channels: {channels}"
         )
 
-    # Convert camera image (BGR) to grayscale for face detection.
+    # Convert camera image to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     cascade_path = (
@@ -145,7 +119,7 @@ def detect_emotion_from_image(image):
     face_cascade = cv2.CascadeClassifier(cascade_path)
 
     if face_cascade.empty():
-        raise RuntimeError("Could not load OpenCV face detector.")
+        raise RuntimeError("Could not load face detector.")
 
     faces = face_cascade.detectMultiScale(
         gray,
@@ -157,45 +131,31 @@ def detect_emotion_from_image(image):
     if len(faces) == 0:
         return "No face detected"
 
-    # Select the largest face in the image.
+    # Select the largest detected face
     x, y, w, h = max(
         faces,
         key=lambda face: face[2] * face[3]
     )
 
-    face_gray = gray[y:y + h, x:x + w]
+    face = gray[y:y + h, x:x + w]
+    face = cv2.resize(face, (int(width), int(height)))
 
-    # Resize to the model's expected dimensions.
-    face_gray = cv2.resize(
-        face_gray,
-        (int(width), int(height))
-    )
-
-    # Prepare grayscale or RGB input according to model shape.
+    # Prepare input according to model channel count
     if channels == 1:
-        roi = face_gray[..., np.newaxis]
+        roi = face[..., np.newaxis]
     else:
-        roi = cv2.cvtColor(
-            face_gray,
-            cv2.COLOR_GRAY2RGB
-        )
+        roi = cv2.cvtColor(face, cv2.COLOR_GRAY2RGB)
 
-    # Match the common FER2013 pixel normalization.
-    # If training used a different normalization, reproduce it here.
+    # Match the preprocessing used during model training
     roi = roi.astype(np.float32) / 255.0
-
-    # Add the batch dimension.
     roi = np.expand_dims(roi, axis=0)
 
-    # Predict emotion.
     prediction = emotion_model.predict(roi, verbose=0)
     probabilities = prediction[0]
 
     if len(probabilities) != len(emotion_labels):
         raise ValueError(
-            f"Model returned {len(probabilities)} outputs, "
-            f"but {len(emotion_labels)} emotion labels are configured. "
-            "Check the model's original class order."
+            "Model output count does not match emotion labels."
         )
 
     emotion_index = int(np.argmax(probabilities))
@@ -206,22 +166,22 @@ def detect_emotion_from_image(image):
 
 
 # =========================================================
-# 6. Streamlit application
+# 5. Streamlit application
 # =========================================================
 
 def main():
     st.set_page_config(
-        page_title="Moodify - Emotion Music",
+        page_title="Moodify - YouTube Music",
         page_icon="🎵",
         layout="centered"
     )
 
     st.title("🎵 Moodify")
-    st.subheader("Facial Emotion Music Recommendation")
+    st.subheader("Facial Emotion-Based Music Recommendation")
 
     st.write(
         "Capture your face to estimate your facial expression "
-        "and discover music recommendations."
+        "and explore music recommendations on YouTube."
     )
 
     img_file = st.camera_input("📸 Capture your face")
@@ -230,7 +190,7 @@ def main():
         st.info("Capture a photo to get started.")
         return
 
-    # Read the uploaded camera image directly from memory.
+    # Decode camera image
     file_bytes = np.frombuffer(
         img_file.getvalue(),
         dtype=np.uint8
@@ -239,9 +199,10 @@ def main():
     frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
     if frame is None:
-        st.error("Could not read the captured image. Please try again.")
+        st.error("Unable to read the image. Please try again.")
         return
 
+    # Predict emotion
     try:
         result = detect_emotion_from_image(frame)
 
@@ -250,78 +211,59 @@ def main():
             return
 
         emotion, confidence, original_image, face_box = result
-        x, y, w, h = face_box
-
-        # Display the captured image with a face rectangle.
-        display_image = original_image.copy()
-
-        cv2.rectangle(
-            display_image,
-            (x, y),
-            (x + w, y + h),
-            (0, 255, 0),
-            2
-        )
-
-        display_image = cv2.cvtColor(
-            display_image,
-            cv2.COLOR_BGR2RGB
-        )
-
-        st.image(
-            display_image,
-            caption="Detected face",
-            use_container_width=True
-        )
-
-        st.success(f"Estimated facial emotion: {emotion}")
-        st.caption(
-            f"Model confidence: {confidence:.1%}. "
-            "This is a model score, not a validated measure of actual mood."
-        )
 
     except Exception as error:
         st.error("Emotion detection failed.")
         st.exception(error)
         return
 
-    # Recommend music for the predicted expression.
+    # Draw face rectangle
+    x, y, w, h = face_box
+    display_image = original_image.copy()
+
+    cv2.rectangle(
+        display_image,
+        (x, y),
+        (x + w, y + h),
+        (0, 255, 0),
+        2
+    )
+
+    display_image = cv2.cvtColor(
+        display_image,
+        cv2.COLOR_BGR2RGB
+    )
+
+    st.image(
+        display_image,
+        caption="Detected face",
+        use_container_width=True
+    )
+
+    st.success(f"Estimated facial emotion: {emotion}")
+
+    st.caption(
+        f"Model confidence: {confidence:.1%}. "
+        "This score is not necessarily a calibrated probability "
+        "or a definitive measure of your mood."
+    )
+
+    # Generate music recommendations
     genre = get_genre(emotion)
 
-    st.subheader(f"🎶 Recommended genre: {genre.title()}")
+    st.subheader(f"🎶 Recommended music: {genre.title()}")
+    st.write("Choose a search below to explore music on YouTube.")
 
-    try:
-        with st.spinner("Searching Spotify for tracks..."):
-            tracks = get_tracks_by_genre(genre)
+    recommendations = get_youtube_tracks(genre)
 
-        if not tracks:
-            st.warning(
-                "Spotify returned no tracks for this genre. "
-                "Please try again later."
-            )
-            return
-
-        for idx, track in enumerate(tracks, start=1):
-            st.markdown(
-                f"**{idx}. {track['name']}** — {track['artist']}"
-            )
-
-            if track["url"]:
-                st.markdown(
-                    f"[🎧 Listen on Spotify]({track['url']})"
-                )
-
-            st.divider()
-
-    except Exception:
-        st.error(
-            "Unable to retrieve music from Spotify. "
-            "Check your Spotify credentials and API access."
-        )
+    for idx, track in enumerate(recommendations, start=1):
+        st.markdown(f"**{idx}. {track['name']}**")
+        st.markdown(f"[▶️ Listen on YouTube]({track['url']})")
+        st.divider()
 
 
 # =========================================================
-# 7. Run the application
+# 6. Run application
 # =========================================================
 
 if __name__ == "__main__":
